@@ -21,7 +21,7 @@ global.__DEV__ = process.env.NODE_ENV !== 'production';
 expect.extend(require('./toWarnDev'));
 
 function App(props) {
-  return 'hello world';
+  return 'hello nerds';
 }
 
 describe('legacy mode', () => {
