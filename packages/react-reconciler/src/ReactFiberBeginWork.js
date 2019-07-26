@@ -41,7 +41,7 @@ import {
   SimpleMemoComponent,
   LazyComponent,
   IncompleteClassComponent,
-  EventComponent,
+  FundamentalComponent,
 } from 'shared/ReactWorkTags';
 import {
   NoEffect,
@@ -61,6 +61,7 @@ import {
   enableSchedulerTracing,
   enableSuspenseServerRenderer,
   enableFlareAPI,
+  enableFundamentalAPI,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import shallowEqual from 'shared/shallowEqual';
@@ -109,11 +110,7 @@ import {
 } from './ReactFiberHostConfig';
 import type {SuspenseInstance} from './ReactFiberHostConfig';
 import {shouldSuspend} from './ReactFiberReconciler';
-import {
-  pushHostContext,
-  pushHostContainer,
-  pushHostContextForEventComponent,
-} from './ReactFiberHostContext';
+import {pushHostContext, pushHostContainer} from './ReactFiberHostContext';
 import {
   suspenseStackCursor,
   pushSuspenseContext,
@@ -175,7 +172,7 @@ import {
   requestCurrentTime,
   retryTimedOutBoundary,
 } from './ReactFiberWorkLoop';
-import {prepareToReadEventComponents} from './ReactFiberEvents';
+import {prepareToReadListenerHooks} from './ReactFiberEvents';
 
 const ReactCurrentOwner = ReactSharedInternals.ReactCurrentOwner;
 
@@ -302,7 +299,9 @@ function updateForwardRef(
   // The rest is a fork of updateFunctionComponent
   let nextChildren;
   prepareToReadContext(workInProgress, renderExpirationTime);
-  prepareToReadEventComponents(workInProgress);
+  if (enableFlareAPI) {
+    prepareToReadListenerHooks(workInProgress);
+  }
   if (__DEV__) {
     ReactCurrentOwner.current = workInProgress;
     setCurrentPhase('render');
@@ -321,6 +320,9 @@ function updateForwardRef(
     ) {
       // Only double-render components with Hooks
       if (workInProgress.memoizedState !== null) {
+        if (enableFlareAPI) {
+          prepareToReadListenerHooks(workInProgress);
+        }
         nextChildren = renderWithHooks(
           current,
           workInProgress,
@@ -623,7 +625,9 @@ function updateFunctionComponent(
 
   let nextChildren;
   prepareToReadContext(workInProgress, renderExpirationTime);
-  prepareToReadEventComponents(workInProgress);
+  if (enableFlareAPI) {
+    prepareToReadListenerHooks(workInProgress);
+  }
   if (__DEV__) {
     ReactCurrentOwner.current = workInProgress;
     setCurrentPhase('render');
@@ -642,6 +646,9 @@ function updateFunctionComponent(
     ) {
       // Only double-render components with Hooks
       if (workInProgress.memoizedState !== null) {
+        if (enableFlareAPI) {
+          prepareToReadListenerHooks(workInProgress);
+        }
         nextChildren = renderWithHooks(
           current,
           workInProgress,
@@ -1238,7 +1245,9 @@ function mountIndeterminateComponent(
   const context = getMaskedContext(workInProgress, unmaskedContext);
 
   prepareToReadContext(workInProgress, renderExpirationTime);
-  prepareToReadEventComponents(workInProgress);
+  if (enableFlareAPI) {
+    prepareToReadListenerHooks(workInProgress);
+  }
   let value;
 
   if (__DEV__) {
@@ -1361,6 +1370,9 @@ function mountIndeterminateComponent(
       ) {
         // Only double-render components with Hooks
         if (workInProgress.memoizedState !== null) {
+          if (enableFlareAPI) {
+            prepareToReadListenerHooks(workInProgress);
+          }
           value = renderWithHooks(
             null,
             workInProgress,
@@ -2477,9 +2489,17 @@ function updateContextConsumer(
   return workInProgress.child;
 }
 
-function updateEventComponent(current, workInProgress, renderExpirationTime) {
+function updateFundamentalComponent(
+  current,
+  workInProgress,
+  renderExpirationTime,
+) {
+  const fundamentalImpl = workInProgress.type.impl;
+  if (fundamentalImpl.reconcileChildren === false) {
+    return null;
+  }
   const nextProps = workInProgress.pendingProps;
-  let nextChildren = nextProps.children;
+  const nextChildren = nextProps.children;
 
   reconcileChildren(
     current,
@@ -2487,7 +2507,6 @@ function updateEventComponent(current, workInProgress, renderExpirationTime) {
     nextChildren,
     renderExpirationTime,
   );
-  pushHostContextForEventComponent(workInProgress);
   return workInProgress.child;
 }
 
@@ -2780,11 +2799,6 @@ function beginWork(
           pushSuspenseContext(workInProgress, suspenseStackCursor.current);
           break;
         }
-        case EventComponent:
-          if (enableFlareAPI) {
-            pushHostContextForEventComponent(workInProgress);
-          }
-          break;
       }
       return bailoutOnAlreadyFinishedWork(
         current,
@@ -2970,9 +2984,9 @@ function beginWork(
         renderExpirationTime,
       );
     }
-    case EventComponent: {
-      if (enableFlareAPI) {
-        return updateEventComponent(
+    case FundamentalComponent: {
+      if (enableFundamentalAPI) {
+        return updateFundamentalComponent(
           current,
           workInProgress,
           renderExpirationTime,
