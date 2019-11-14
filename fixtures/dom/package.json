@@ -1,3 +1,5 @@
+Making a change
+
 {
   "name": "react-fixtures",
   "version": "0.1.0",
@@ -24,3 +26,4 @@
     "eject": "react-scripts eject"
   }
 }
+
