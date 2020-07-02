@@ -62,6 +62,7 @@ import {
   enableSuspenseServerRenderer,
   enableFlareAPI,
   enableFundamentalAPI,
+  warnAboutDefaultPropsOnFunctionComponents,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import shallowEqual from 'shared/shallowEqual';
@@ -187,6 +188,7 @@ export let didWarnAboutReassigningProps;
 let didWarnAboutMaxDuration;
 let didWarnAboutRevealOrder;
 let didWarnAboutTailOptions;
+let didWarnAboutDefaultPropsOnFunctionComponent;
 
 if (__DEV__) {
   didWarnAboutBadClass = {};
@@ -198,6 +200,7 @@ if (__DEV__) {
   didWarnAboutMaxDuration = false;
   didWarnAboutRevealOrder = {};
   didWarnAboutTailOptions = {};
+  didWarnAboutDefaultPropsOnFunctionComponent = {};
 }
 
 export function reconcileChildren(
@@ -1424,6 +1427,23 @@ function validateFunctionComponentInDev(workInProgress: Fiber, Component: any) {
     }
   }
 
+  if (
+    warnAboutDefaultPropsOnFunctionComponents &&
+    Component.defaultProps !== undefined
+  ) {
+    const componentName = getComponentName(Component) || 'Unknown';
+
+    if (!didWarnAboutDefaultPropsOnFunctionComponent[componentName]) {
+      warningWithoutStack(
+        false,
+        '%s: Support for defaultProps will be removed from function components ' +
+          'in a future major release. Use JavaScript default parameters instead.',
+        componentName,
+      );
+      didWarnAboutDefaultPropsOnFunctionComponent[componentName] = true;
+    }
+  }
+
   if (typeof Component.getDerivedStateFromProps === 'function') {
     const componentName = getComponentName(Component) || 'Unknown';
 
@@ -2566,6 +2586,7 @@ function remountFiber(
     newWorkInProgress.index = oldWorkInProgress.index;
     newWorkInProgress.sibling = oldWorkInProgress.sibling;
     newWorkInProgress.return = oldWorkInProgress.return;
+    newWorkInProgress.ref = oldWorkInProgress.ref;
 
     // Replace the child/sibling pointers above it.
     if (oldWorkInProgress === returnFiber.child) {
